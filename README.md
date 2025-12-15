@@ -2,6 +2,8 @@
 
 **Focus & Grow** is a professional-grade, minimalistic habit tracker built for individuals who value consistency, aesthetics, and privacy. Unlike bloated productivity apps, it focuses entirely on a clear monthly view, powerful analytics, and instant feedback—all without requiring a login or internet connection.
 
+### You can download the working software here on **[Itch.io](https://saamiabbaskhan.itch.io/focus-and-grow-habit-tracking)**
+
 ## 🚀 Key Features
 
 *   **Minimalistic & Distraction-Free**: A clean UI that puts your data front and center.
