@@ -2,6 +2,8 @@
 
 **Focus & Grow** is a professional-grade, minimalistic habit tracker built for individuals who value consistency, aesthetics, and privacy. Unlike bloated productivity apps, it focuses entirely on a clear monthly view, powerful analytics, and instant feedback—all without requiring a login or internet connection.
 
+![Focus & Grow Preview](https://via.placeholder.com/1200x600?text=Focus+%26+Grow+Preview)
+
 ## 🚀 Key Features
 
 *   **Minimalistic & Distraction-Free**: A clean UI that puts your data front and center.
@@ -33,7 +35,7 @@ To run this project locally in a browser environment, you will need Node.js inst
 
 1.  **Clone the Repository**
     ```bash
-    git clone https://github.com/SaamiAbbasKhan/Focus-and-Grow.git
+    git clone https://github.com/your-username/focus-and-grow.git
     cd focus-and-grow
     ```
 

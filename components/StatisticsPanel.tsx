@@ -4,9 +4,10 @@ import { DAYS_IN_MONTH } from '../constants';
 
 interface StatisticsPanelProps {
   habits: Habit[];
+  currentDay: number; // Day of the month (1-31)
 }
 
-export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ habits }) => {
+export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ habits, currentDay }) => {
   
   const getStreaks = (doneDays: number[]) => {
     if (doneDays.length === 0) return { current: 0, best: 0 };
@@ -45,7 +46,24 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ habits }) => {
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {habits.map(habit => {
         const doneCount = habit.done.length;
-        const notDoneCount = habit.notDone.length;
+        
+        // Missed Logic: Unticks before the latest tick mark.
+        let missedCount = 0;
+        
+        if (habit.done.length > 0) {
+            // Find the latest day marked as done
+            const latestTick = Math.max(...habit.done);
+            
+            // Check days from 1 up to (latestTick - 1)
+            for (let day = 1; day < latestTick; day++) {
+                if (!habit.done.includes(day)) {
+                    missedCount++;
+                }
+            }
+        }
+        // If no days are marked done, missed is 0 by definition of this logic 
+        // (no "latest tick" exists to check before).
+
         const percent = Math.round((doneCount / DAYS_IN_MONTH) * 100);
         const { current, best } = getStreaks(habit.done);
         
@@ -69,7 +87,7 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ habits }) => {
                 </div>
                 <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
                     <span className="flex h-1.5 w-1.5 rounded-full bg-red-400"></span>
-                    <span>{notDoneCount} Missed</span>
+                    <span>{missedCount} Missed</span>
                 </div>
                 
                 <div className="flex items-center gap-1.5 font-medium text-orange-600 dark:text-orange-400">

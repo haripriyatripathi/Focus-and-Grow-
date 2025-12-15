@@ -1,33 +1,32 @@
 import React, { useState } from 'react';
-import { Habit, Weekday, WEEKDAYS } from '../types';
-import { DAYS_IN_MONTH } from '../constants';
+import { Habit, WEEKDAYS } from '../types';
 
 interface HabitTableProps {
   habits: Habit[];
-  firstDayOfWeek: Weekday;
-  setFirstDayOfWeek: (day: Weekday) => void;
+  daysInMonth: number;
+  startDayIndex: number; // 0 for Mon, 1 for Tue, etc based on WEEKDAYS array
   deleteHabit: (id: number) => void;
   updateHabitName: (id: number, name: string) => void;
   updateHabitColor: (id: number) => void;
   toggleDay: (habitId: number, day: number, type: 'left' | 'right') => void;
+  currentMonthName: string;
 }
 
 export const HabitTable: React.FC<HabitTableProps> = ({
   habits,
-  firstDayOfWeek,
-  setFirstDayOfWeek,
+  daysInMonth,
+  startDayIndex,
   deleteHabit,
   updateHabitName,
   updateHabitColor,
   toggleDay,
+  currentMonthName
 }) => {
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
 
-  const startIndex = WEEKDAYS.indexOf(firstDayOfWeek);
-  
   // Helper to get weekday for any day number (1-31)
   const getWeekday = (day: number) => {
-    return WEEKDAYS[(startIndex + day - 1) % 7];
+    return WEEKDAYS[(startDayIndex + day - 1) % 7];
   };
 
   const getWeekGroup = (day: number) => {
@@ -41,8 +40,12 @@ export const HabitTable: React.FC<HabitTableProps> = ({
   const getWeeklyStats = (habit: Habit, start: number, end: number) => {
     let done = 0;
     let missed = 0;
-    const total = end - start + 1;
-    for (let i = start; i <= end; i++) {
+    const effectiveEnd = Math.min(end, daysInMonth);
+    const total = Math.max(0, effectiveEnd - start + 1);
+    
+    if (total === 0) return { done: 0, missed: 0, total: 0 };
+
+    for (let i = start; i <= effectiveEnd; i++) {
         if (habit.done.includes(i)) done++;
         if (habit.notDone.includes(i)) missed++;
     }
@@ -54,11 +57,26 @@ export const HabitTable: React.FC<HabitTableProps> = ({
     { id: 2, label: 'Week 2', sub: 'Days 8-14', start: 8, end: 14 },
     { id: 3, label: 'Week 3', sub: 'Days 15-21', start: 15, end: 21 },
     { id: 4, label: 'Week 4', sub: 'Days 22-28', start: 22, end: 28 },
-    { id: 5, label: 'End', sub: 'Days 29-31', start: 29, end: 31 },
-  ];
+    { id: 5, label: 'End', sub: `Days 29-${daysInMonth}`, start: 29, end: daysInMonth },
+  ].filter(w => w.start <= daysInMonth);
 
-  // Identifies if a day is the end of a week block for visual separation
   const isWeekEnd = (day: number) => [7, 14, 21, 28].includes(day);
+
+  // --- Summary Calculation Helpers ---
+  const getDayStats = (day: number) => {
+    let doneCount = 0;
+    const totalHabits = habits.length;
+
+    habits.forEach(habit => {
+        if (habit.done.includes(day)) doneCount++;
+    });
+
+    // Per user request: Not Done = Total - Done (Includes pending and explicitly missed)
+    const notDoneCount = totalHabits - doneCount;
+
+    const progress = totalHabits > 0 ? Math.round((doneCount / totalHabits) * 100) : 0;
+    return { doneCount, notDoneCount, progress };
+  };
 
   const renderDayHeader = (day: number) => {
     const weekday = getWeekday(day);
@@ -86,6 +104,61 @@ export const HabitTable: React.FC<HabitTableProps> = ({
     );
   };
 
+  // --- Render Footer Rows ---
+  const renderSummaryRow = (type: 'Progress' | 'Done' | 'Not Done') => {
+    const labelClass = "sticky left-0 z-20 border-r border-t border-gray-200 bg-gray-50 px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400";
+    const spacerClass = "sticky left-64 z-20 border-r border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800";
+    
+    return (
+      <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+        <td className={labelClass}>{type}</td>
+        <td className={spacerClass}></td>
+        
+        {viewMode === 'daily' && (
+             Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
+               const { doneCount, notDoneCount, progress } = getDayStats(day);
+               const isDivider = isWeekEnd(day);
+               const weekGroup = getWeekGroup(day);
+               const isEvenWeek = weekGroup % 2 === 0;
+
+               let content;
+               let cellColorClass = isEvenWeek ? 'bg-gray-50/30 dark:bg-gray-800/20' : '';
+               
+               if (type === 'Progress') {
+                 if (progress === 100 && habits.length > 0) {
+                    cellColorClass = "bg-green-50 dark:bg-green-900/20";
+                    content = <span className="font-bold text-green-600 dark:text-green-400 animate-pulse">{progress}%</span>;
+                 } else if (progress > 0) {
+                    content = <span className="font-medium text-gray-600 dark:text-gray-400">{progress}%</span>;
+                 } else {
+                    content = <span className="text-gray-300 dark:text-gray-600">0%</span>;
+                 }
+               } else if (type === 'Done') {
+                 content = doneCount > 0 ? <span className="font-semibold text-brand-600 dark:text-brand-400">{doneCount}</span> : <span className="text-gray-300">-</span>;
+               } else if (type === 'Not Done') {
+                 // Always show number if > 0
+                 content = notDoneCount > 0 ? <span className="font-medium text-red-500">{notDoneCount}</span> : <span className="text-gray-300">-</span>;
+               }
+
+               return (
+                 <td
+                   key={day}
+                   className={`h-10 border-t border-gray-200 text-center text-xs dark:border-gray-700 ${
+                       isDivider 
+                         ? 'border-r-2 border-r-gray-300 dark:border-r-gray-600' 
+                         : 'border-r border-r-gray-100 dark:border-r-gray-800'
+                   } ${cellColorClass}`}
+                 >
+                   {content}
+                 </td>
+               );
+             })
+        )}
+      </tr>
+    );
+  };
+
+
   return (
     <div className="relative mb-8 flex w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
       
@@ -110,21 +183,16 @@ export const HabitTable: React.FC<HabitTableProps> = ({
          </div>
 
          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400">Week starts on:</span>
-            <select
-               value={firstDayOfWeek}
-               onChange={(e) => setFirstDayOfWeek(e.target.value as Weekday)}
-               className="cursor-pointer rounded border-none bg-transparent text-sm font-bold text-gray-700 focus:outline-none focus:ring-0 dark:text-gray-300"
-             >
-               {WEEKDAYS.map(w => <option key={w} value={w} className="dark:bg-gray-800">{w}</option>)}
-             </select>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Current Month:</span>
+            <div className="rounded bg-white px-3 py-1 text-sm font-bold text-gray-900 shadow-sm dark:bg-gray-800 dark:text-white border border-gray-200 dark:border-gray-700">
+               {currentMonthName}
+            </div>
          </div>
       </div>
 
       <div className="w-full overflow-x-auto pb-2">
         <table className="min-w-max border-collapse text-left">
           <thead className="z-40">
-            {/* Row 1: Grouping */}
             <tr>
               <th className="sticky left-0 z-30 h-10 w-64 border-b border-r border-gray-200 bg-gray-50 px-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
                 Habits
@@ -139,22 +207,22 @@ export const HabitTable: React.FC<HabitTableProps> = ({
                   <th colSpan={7} className="border-b border-r-2 border-gray-200 border-r-gray-300 bg-gray-100/50 px-2 text-center text-xs font-bold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:border-r-gray-600 dark:bg-gray-800/50 dark:text-gray-400">Week 2</th>
                   <th colSpan={7} className="border-b border-r-2 border-gray-200 border-r-gray-300 bg-gray-50 px-2 text-center text-xs font-bold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:border-r-gray-600 dark:bg-gray-800 dark:text-gray-400">Week 3</th>
                   <th colSpan={7} className="border-b border-r-2 border-gray-200 border-r-gray-300 bg-gray-100/50 px-2 text-center text-xs font-bold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:border-r-gray-600 dark:bg-gray-800/50 dark:text-gray-400">Week 4</th>
-                  <th colSpan={3} className="border-b border-gray-200 bg-gray-50 px-2 text-center text-xs font-bold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">End</th>
+                  {daysInMonth > 28 && (
+                      <th colSpan={daysInMonth - 28} className="border-b border-gray-200 bg-gray-50 px-2 text-center text-xs font-bold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">End</th>
+                  )}
                 </>
               ) : (
-                  <th colSpan={5} className="border-b border-gray-200 bg-gray-50 px-2 text-center text-xs font-bold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                  <th colSpan={WEEKS.length} className="border-b border-gray-200 bg-gray-50 px-2 text-center text-xs font-bold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
                     Weekly Breakdown
                   </th>
               )}
             </tr>
-            
-            {/* Row 2: Days or Week Headers */}
             <tr>
               <th className="sticky left-0 z-30 border-b border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"></th>
               <th className="sticky left-64 z-30 border-b border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"></th>
               
               {viewMode === 'daily' ? (
-                 Array.from({ length: DAYS_IN_MONTH }, (_, i) => i + 1).map(renderDayHeader)
+                 Array.from({ length: daysInMonth }, (_, i) => i + 1).map(renderDayHeader)
               ) : (
                  WEEKS.map((week, idx) => (
                     <th key={week.id} className={`min-w-[140px] border-b border-r border-gray-200 p-2 text-center text-xs dark:border-gray-700 ${idx % 2 !== 0 ? 'bg-gray-50/50 dark:bg-gray-800/30' : 'bg-white dark:bg-gray-900'}`}>
@@ -168,11 +236,10 @@ export const HabitTable: React.FC<HabitTableProps> = ({
 
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {habits.map((habit) => {
-              const progress = Math.round((habit.done.length / DAYS_IN_MONTH) * 100);
+              const progress = Math.round((habit.done.length / daysInMonth) * 100);
 
               return (
                 <tr key={habit.id} className="group hover:bg-gray-50 dark:hover:bg-gray-800">
-                  {/* Sticky Column 1: Habit Name */}
                   <td className="sticky left-0 z-20 w-64 border-r border-gray-200 bg-white px-4 py-3 group-hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:group-hover:bg-gray-800">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex w-full items-center gap-2">
@@ -204,7 +271,6 @@ export const HabitTable: React.FC<HabitTableProps> = ({
                     </div>
                   </td>
 
-                  {/* Sticky Column 2: Progress */}
                   <td className="sticky left-64 z-20 w-32 border-r border-gray-200 bg-white px-4 py-3 group-hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:group-hover:bg-gray-800">
                     <div className="flex flex-col gap-1">
                       <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">{progress}%</span>
@@ -217,9 +283,8 @@ export const HabitTable: React.FC<HabitTableProps> = ({
                     </div>
                   </td>
 
-                  {/* Body Content */}
                   {viewMode === 'daily' ? (
-                     Array.from({ length: DAYS_IN_MONTH }, (_, i) => i + 1).map((day) => {
+                     Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
                        const isDone = habit.done.includes(day);
                        const isNotDone = habit.notDone.includes(day);
                        const weekGroup = getWeekGroup(day);
@@ -262,10 +327,9 @@ export const HabitTable: React.FC<HabitTableProps> = ({
                        );
                      })
                   ) : (
-                     // WEEKLY VIEW CELLS
                      WEEKS.map((week, idx) => {
                         const { done, missed, total } = getWeeklyStats(habit, week.start, week.end);
-                        const percent = Math.round((done / total) * 100);
+                        const percent = total > 0 ? Math.round((done / total) * 100) : 0;
                         const isEven = idx % 2 !== 0;
 
                         return (
@@ -276,18 +340,6 @@ export const HabitTable: React.FC<HabitTableProps> = ({
                                         {missed > 0 && <span className="text-xs font-medium text-red-500">{missed} missed</span>}
                                     </div>
                                     <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-                                        <div 
-                                            className="h-full rounded-full transition-colors duration-300" 
-                                            style={{ 
-                                                width: `${percent}%`, 
-                                                backgroundColor: percent >= 80 ? habit.color : percent >= 50 ? habit.color : '#fb923c' // Orange for low, or habit color for high
-                                                // Actually, let's just use the habit color for consistency, maybe slight opacity if low?
-                                                // Simpler: Use habit color unless very low
-                                            }}
-                                         >
-                                            {/* Overlay for low progress if needed, but keeping it simple is better */}
-                                         </div>
-                                         {/* Re-implementing logic from before but using habit color primarily */}
                                          <div className="h-full rounded-full" style={{ width: `${percent}%`, backgroundColor: percent < 50 ? '#fb923c' : habit.color }}></div>
                                     </div>
                                 </div>
@@ -298,7 +350,25 @@ export const HabitTable: React.FC<HabitTableProps> = ({
                 </tr>
               );
             })}
+            
+            {/* Spacer Row to create gap before footer - Increased Padding to h-20 */}
+            <tr className="h-20">
+                <td className="sticky left-0 z-20 bg-white border-r border-gray-100 dark:bg-gray-900 dark:border-gray-800"></td>
+                <td className="sticky left-64 z-20 bg-white border-r border-gray-100 dark:bg-gray-900 dark:border-gray-800"></td>
+                <td colSpan={viewMode === 'daily' ? daysInMonth : WEEKS.length} className="bg-transparent"></td>
+            </tr>
+
           </tbody>
+          
+          {/* Footer for Daily Overview - ONLY visible in Daily Mode */}
+          {viewMode === 'daily' && (
+            <tfoot className="z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] border-t-2 border-gray-100 dark:border-gray-800">
+              {renderSummaryRow('Progress')}
+              {renderSummaryRow('Done')}
+              {renderSummaryRow('Not Done')}
+            </tfoot>
+          )}
+
         </table>
       </div>
     </div>
