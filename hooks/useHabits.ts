@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Habit, AppState, Weekday, DayStatus } from '../types';
+import { Habit, AppState, Weekday, DayStatus } from '../types;
 import { INITIAL_HABITS, DEFAULT_TITLE, DEFAULT_START_DAY, STORAGE_KEY, HABIT_COLORS } from '../constants';
 
 export function useHabits() {
